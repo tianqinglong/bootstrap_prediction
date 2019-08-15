@@ -1,3 +1,7 @@
+source("simulate_censored_data.R")
+source("parallel.R")
+source("get_mle_pure_r_code.R")
+
 conditional_prob <- function(beta, eta, t_c, t_w){
   return( (pweibull(t_w, beta, eta) - pweibull(t_c, beta, eta))/
             (1-pweibull(t_c, beta, eta)) )
@@ -29,14 +33,14 @@ compute_gpq_conditional_prob <- function(MLEs, BT_MLEs, t_c, t_w)
   return (p_star_star)
 }
 
-N <- 20
+N <- 200
 B <- 5000
 beta <- 2
 eta <- 1
 
-pf1 <- 0.2
+pf1 <- 0.1
 delta <- 0.2
-r <- 20
+r <- 50
 
 n <- r/pf1
 t_c <- qweibull(pf1, beta, eta)
@@ -135,6 +139,6 @@ mclapply(censored_data_list, function(x) {
   GPQCP <- compute_coverage_prob(GPQ_predictive, n - r_hat, p_true)
   
   return (list(BootP = quantile_vector, CaliP = quantile_vector_2, PB = PB_quantile,
-               BootCP = bootCP, CaliCP = caliCP, PBCP = PBCP, GPQCP = GPQCP) )
+               GPQ_PI = GPQ_predictive, BootCP = bootCP, CaliCP = caliCP, PBCP = PBCP, GPQCP = GPQCP) )
 }) -> output
 Sys.time() - t1
