@@ -1,6 +1,7 @@
 source("simulate_censored_data.R")
 source("parallel.R")
 source("get_mle_pure_r_code.R")
+source("findMLEWrapper.R")
 
 conditional_prob <- function(beta, eta, t_c, t_w){
   return( (pweibull(t_w, beta, eta) - pweibull(t_c, beta, eta))/
@@ -33,14 +34,14 @@ compute_gpq_conditional_prob <- function(MLEs, BT_MLEs, t_c, t_w)
   return (p_star_star)
 }
 
-N <- 200
+N <- 20
 B <- 5000
 beta <- 2
 eta <- 1
 
 pf1 <- 0.1
 delta <- 0.2
-r <- 50
+r <- 10
 
 n <- r/pf1
 t_c <- qweibull(pf1, beta, eta)
@@ -54,13 +55,13 @@ t1 <- Sys.time()
 mclapply(censored_data_list, function(x) {
   censored_data <- x
   
-  mles <- get_Weibull_mle_R(censored_data)
+  mles <- findMLEFast(censored_data)
   r_hat <- censored_data$Number_of_Failures
   
   p_hat <- conditional_prob(mles[[1]], mles[[2]], t_c, t_w)
   
   bootstrap_samples <- lapply(1:B , function(x) {simulate_data(r, pf1, mles[[1]], mles[[2]])})
-  bootstrap_mles <- lapply(bootstrap_samples, function(x) {get_Weibull_mle_R(x)})
+  bootstrap_mles <- lapply(bootstrap_samples, function(x) {findMLEFast(x)})
   
   value_vector <- NULL
   value_vector_2 <- NULL
@@ -106,8 +107,8 @@ mclapply(censored_data_list, function(x) {
   
   p_vector <- c(0.05, 0.1, 0.9, 0.95)
   
-  boot_quantile_vector <- sapply(p_vector, function (x) {value_vector_sort[min(which(cdf_value > x))]})
-  boot_quantile_vector_2 <- sapply(p_vector, function (x) {value_vector_sort_2[min(which(cdf_value_2 > x))]})
+  boot_quantile_vector <- sapply(p_vector, function (x) {value_vector_sort[which(cdf_value > x)[1]]})
+  boot_quantile_vector_2 <- sapply(p_vector, function (x) {value_vector_sort_2[which(cdf_value_2 > x)[1]]})
   
   quantile_vector <- boot_quantile_vector * sqrt( (n-r_hat)*p_hat*(1-p_hat) ) + (n-r_hat)*p_hat
   quantile_vector_2 <- qbinom(boot_quantile_vector_2, size = n - r_hat, prob = p_hat)
@@ -125,11 +126,11 @@ mclapply(censored_data_list, function(x) {
   #   return(out)
   # })
   
-  PB_quantile <- sapply(p_vector, function (x) {min(which(PB_predictive > x))})
+  PB_quantile <- sapply(p_vector, function (x) {which(PB_predictive > x)[1]})
   PB_quantile[1:2] <- PB_quantile[1:2] - 1
   PB_quantile[PB_quantile < 0] <- 0
   
-  GPQ_predictive <- sapply(p_vector, function (x) {min(which(GPQ_predictive > x))})
+  GPQ_predictive <- sapply(p_vector, function (x) {which(GPQ_predictive > x)[1]})
   GPQ_predictive[1:2] <- GPQ_predictive[1:2] - 1
   GPQ_predictive[GPQ_predictive < 0] <- 0
   
@@ -140,5 +141,5 @@ mclapply(censored_data_list, function(x) {
   
   return (list(BootP = quantile_vector, CaliP = quantile_vector_2, PB = PB_quantile,
                GPQ_PI = GPQ_predictive, BootCP = bootCP, CaliCP = caliCP, PBCP = PBCP, GPQCP = GPQCP) )
-}) -> output
+}, mc.cores = 8) -> output
 Sys.time() - t1
