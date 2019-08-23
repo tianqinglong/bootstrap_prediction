@@ -1,7 +1,7 @@
 source("simulate_censored_data.R")
 source("parallel.R")
 source("get_mle_pure_r_code.R")
-source("findMLEWrapper.R")
+# source("findMLEWrapper.R")
 
 conditional_prob <- function(beta, eta, t_c, t_w){
   return( (pweibull(t_w, beta, eta) - pweibull(t_c, beta, eta))/
@@ -34,14 +34,14 @@ compute_gpq_conditional_prob <- function(MLEs, BT_MLEs, t_c, t_w)
   return (p_star_star)
 }
 
-N <- 20
+N <- 5000
 B <- 5000
 beta <- 2
 eta <- 1
 
 pf1 <- 0.1
 delta <- 0.2
-r <- 10
+r <- 5
 
 n <- r/pf1
 t_c <- qweibull(pf1, beta, eta)
@@ -55,13 +55,13 @@ t1 <- Sys.time()
 mclapply(censored_data_list, function(x) {
   censored_data <- x
   
-  mles <- findMLEFast(censored_data)
+  mles <- get_Weibull_mle_R(censored_data)
   r_hat <- censored_data$Number_of_Failures
   
   p_hat <- conditional_prob(mles[[1]], mles[[2]], t_c, t_w)
   
   bootstrap_samples <- lapply(1:B , function(x) {simulate_data(r, pf1, mles[[1]], mles[[2]])})
-  bootstrap_mles <- lapply(bootstrap_samples, function(x) {findMLEFast(x)})
+  bootstrap_mles <- lapply(bootstrap_samples, function(x) {get_Weibull_mle_R(x)})
   
   value_vector <- NULL
   value_vector_2 <- NULL
@@ -126,20 +126,25 @@ mclapply(censored_data_list, function(x) {
   #   return(out)
   # })
   
+  
   PB_quantile <- sapply(p_vector, function (x) {which(PB_predictive > x)[1]})
+  if (is.na(PB_quantile[1])) {print(PB_predictive)}
+  
   PB_quantile[1:2] <- PB_quantile[1:2] - 1
   PB_quantile[PB_quantile < 0] <- 0
   
-  GPQ_predictive <- sapply(p_vector, function (x) {which(GPQ_predictive > x)[1]})
+  GPQ_quantile <- sapply(p_vector, function (x) {which(GPQ_predictive > x)[1]})
+  if (is.na(GPQ_quantile[1])) {print(GPQ_predictive)}
+  
   GPQ_predictive[1:2] <- GPQ_predictive[1:2] - 1
   GPQ_predictive[GPQ_predictive < 0] <- 0
   
   bootCP <- compute_coverage_prob(quantile_vector, n - r_hat, p_true)
   caliCP <- compute_coverage_prob(quantile_vector_2, n - r_hat, p_true)
   PBCP <- compute_coverage_prob(PB_quantile, n - r_hat, p_true)
-  GPQCP <- compute_coverage_prob(GPQ_predictive, n - r_hat, p_true)
+  GPQCP <- compute_coverage_prob(GPQ_quantile, n - r_hat, p_true)
   
   return (list(BootP = quantile_vector, CaliP = quantile_vector_2, PB = PB_quantile,
-               GPQ_PI = GPQ_predictive, BootCP = bootCP, CaliCP = caliCP, PBCP = PBCP, GPQCP = GPQCP) )
-}, mc.cores = 8) -> output
+               GPQ_PI = GPQ_quantile, BootCP = bootCP, CaliCP = caliCP, PBCP = PBCP, GPQCP = GPQCP) )
+}) -> output
 Sys.time() - t1

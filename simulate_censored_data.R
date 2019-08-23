@@ -33,4 +33,4 @@ simulate_data <- function(r, Pt, shape, scale) {
     output <- list(Number_of_Failures = num_failure, Censor_Time = censor_time, Failure_Times = failure_times, Total_Number = n)
     
     return(output)
-    }
+}
